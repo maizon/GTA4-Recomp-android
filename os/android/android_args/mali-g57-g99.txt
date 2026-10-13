@@ -1,7 +1,7 @@
 # Experimental starting profile for MediaTek Helio G99 / Mali-G57 MC2.
 # This is not yet benchmarked on Mali. Select the Android SYSTEM Vulkan driver
 # in the launcher; do not select Turnip on a Mali GPU.
-# All cvars below are already used by the existing perf/default profiles.
+# Reuses cvars present in the existing perf.txt profile; not benchmarked on Mali.
 --log_level=warn
 
 # Render below 720p output and use the existing FSR1 path.
@@ -33,5 +33,3 @@
 --gta4_motion_blur=false
 --gta4_native_max_queued_frames=3
 --gta4_output_height_cap=720
---gta4_present_mode=vsync
---gta4_fps_guard=0
