@@ -1,0 +1,37 @@
+# Experimental starting profile for MediaTek Helio G99 / Mali-G57 MC2.
+# This is not yet benchmarked on Mali. Select the Android SYSTEM Vulkan driver
+# in the launcher; do not select Turnip on a Mali GPU.
+# All cvars below are already used by the existing perf/default profiles.
+--log_level=warn
+
+# Render below 720p output and use the existing FSR1 path.
+--gta4_native_upscaler=fsr1
+--gta4_fsr1_quality=quality
+--gta4_native_anti_aliasing=fxaa
+
+# Conservative world/shadow/reflection workload.
+--gta4_draw_distance_scale=1.0
+--gta4_dynamic_draw_distance=true
+--gta4_dynamic_draw_distance_min=0.80
+--gta4_shadow_map_base_size=256
+--gta4_shadow_distance_scale=0.5
+--gta4_reflection_resolution=original
+--gta4_reflection_capture_distance=near
+--gta4_reflection_aa=off
+
+# Reduce CPU-side world simulation and cap the target; the cap is not proof
+# that the device sustains 30 FPS.
+--gta4_frame_limit=30
+--gta4_traffic_density_scale=0.4
+--gta4_parked_car_density_scale=0.4
+--gta4_ped_density_scale=0.4
+--gta4_scenario_ped_density_scale=0.4
+
+# Keep detailed profiling off for normal play. Enable it only for diagnostics.
+--gta4_profile_native_detailed_cpu=false
+--gta4_profile_native_detailed_gpu=false
+--gta4_motion_blur=false
+--gta4_native_max_queued_frames=3
+--gta4_output_height_cap=720
+--gta4_present_mode=vsync
+--gta4_fps_guard=0
