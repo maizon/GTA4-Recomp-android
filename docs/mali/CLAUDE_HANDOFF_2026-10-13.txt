@@ -1,0 +1,392 @@
+FICHA TECNICA PARA REVISAO EXTERNA (CLAUDE)
+Projeto: GTA IV Recomp Android — investigacao Mali-G57 / Helio G99
+Data: 2026-10-13
+Idioma: portugues
+Repositorio: https://github.com/maizon/GTA4-Recomp-android
+Branch de trabalho: work/mali-g57-automation
+PR de trabalho: https://github.com/maizon/GTA4-Recomp-android/pull/1
+Commit da cabeca do PR observado na auditoria: c6afa9b18917de10689a5dfa4a63eed2bf353063
+Base observada: main, SHA 2a414a3fd40c109e635ceccc6dc87f8f2fc8f49e
+ATENCAO: esta ficha separa fatos confirmados, relato do usuario e hipoteses. Nao inventar testes.
+
+======================================================================
+1. OBJETIVO
+======================================================================
+
+Avaliar o que falta para o port/recomp de GTA IV deste repositorio funcionar
+com compatibilidade real no Android com SoC MediaTek Helio G99 e GPU ARM
+Mali-G57 MC2. O objetivo e compatibilidade e estabilidade primeiro; depois
+desempenho sustentado, frametimes, memoria e comportamento termico.
+
+O usuario relata que executou com sucesso no proprio dispositivo Mali-G57
+dois outros ports:
+- Skate 3 Mobile: https://github.com/Buku313/Skate3-Mobile
+- Sonic Unleashed Recompiled Android: https://github.com/SansNope/UnleashedRecomp-Android
+
+Esse relato e evidencia pratica importante de que o dispositivo/driver consegue
+executar esses ports, mas ainda NAO prova compatibilidade de GTA IV: engines,
+shaders, formatos de textura, extensoes Vulkan, sincronizacao e carga de CPU/GPU
+sao diferentes. Nao assumir que o GTA IV usa o mesmo caminho grafico.
+
+O usuario quer que Claude leia esta ficha, analise o codigo real, aponte erros
+concretos, oriente as proximas mudancas e priorize correcoes verificaveis.
+Nao copiar renderers ou codigo de outros jogos sem necessidade, licenca e
+analise semantica. Nao incluir assets, executaveis, chaves ou dados proprietarios
+de GTA IV no repositorio/CI.
+
+======================================================================
+2. ESTADO DO REPOSITORIO E PR
+======================================================================
+
+PR #1:
+- Titulo: "Mali G57: audit, conservative profile, and reproducible Android CI"
+- Estado observado: aberto, draft, mergeable segundo GitHub.
+- Branch head: work/mali-g57-automation.
+- Compare contra main observado: 15 commits a frente, 1 commit atras, status
+  "diverged". Reconciliar com main antes de merge e verificar conflitos.
+- O diff do PR lista 13 arquivos adicionados (lista na secao 3).
+- O workflow .github/workflows/android-apk.yml foi observado na branch main,
+  mas NAO aparece na lista de 13 arquivos deste PR; foi adicionado separadamente
+  a main segundo o historico de trabalho. Confirmar o estado atual do repositorio
+  antes de alterar esse arquivo.
+
+GitHub Actions:
+- Run ID observado: 38417273793.
+- Job ID: 115364940323, "Build Android ARM64 APK".
+- Na ultima verificacao (2026-10-13), job ainda estava "in_progress".
+- Setup do job, checkout, Git long paths, Python, Java e instalacao SDK/NDK/CMake
+  tinham concluido com sucesso.
+- Passo "Build native libraries and APK" continuava em andamento.
+- Nao havia artifacts listados nessa verificacao.
+- Download dos logs do job falhou com BlobNotFound enquanto o job ainda rodava.
+- Portanto, NAO declarar build bem-sucedido ou falho. Atualizar estado quando o
+  run terminar e ler o log final.
+
+Toolchain configurada no workflow:
+- Runner Windows.
+- Python 3.12.
+- Java Temurin 17.
+- Android SDK platform 35 / build-tools 35.0.0.
+- NDK 29.0.14206865.
+- CMake 3.31.6.
+- Build type RelWithDebInfo; STRIP=1; DIRECT_CALLS_ENABLE=0.
+- O workflow chama setup_repo.py, build_driver_proxy.sh, build_native.sh e
+  build_apk.sh debug, depois verifica APK e bibliotecas ARM64 e tenta publicar
+  APK + SHA256 + log como artifact por 14 dias.
+- CI so verifica compilacao/empacotamento; nao valida Vulkan nem gameplay no Mali.
+
+======================================================================
+3. LISTA DE ALTERACOES NO PR #1
+======================================================================
+
+Todos os 13 arquivos listados abaixo aparecem como ADDED no diff do PR.
+Sao documentos/perfil/script; o diff observado nao mostra patches do renderer,
+SPIR-V ou conversao de texturas.
+
+1) THIRD_PARTY_NOTICES.md
+   - Registro inicial de projetos/fontes examinados e lembrete de preservar
+     licencas/notices.
+   - Inclui LibertyRecompAndroid, LibertyRecomp, fork experimental ArkSentinel,
+     Vulkan specification, Android NDK e ARM Mali-G57.
+   - Nao substitui verificacao das licencas de cada submodule/dependencia.
+
+2) docs/mali/BENCHMARKS.md
+   - Define protocolo de benchmark: aparelho, API, driver, APK/commit, resolucao,
+     perfil, duracao, cenas, FPS medio, p50/p95/p99 de frame time, stutter,
+     memoria e temperatura.
+   - Deixa valores como pending/not tested; nenhum resultado inventado.
+
+3) docs/mali/BUILD.md
+   - Documenta build manual/CI e toolchain.
+   - Sequencia manual: setup_repo.py; build_driver_proxy.sh; build_native.sh;
+     build_apk.sh debug.
+   - Explica que assets do jogo devem ser instalados pelo usuario e nao embalados
+     nem enviados para artifacts.
+
+4) docs/mali/DEVICE_COMPATIBILITY.md
+   - Alvo: Helio G99, 2x Cortex-A76 + 6x Cortex-A55, Mali-G57 MC2, Android ARM64.
+   - Documenta coleta de propriedades ADB e requisitos de um relatorio Vulkan.
+   - Orienta usar o driver Vulkan SYSTEM no Mali, nao Turnip.
+   - Lista testes futuros de inicializacao, cena 3D, input, audio, saves, pause/
+     resume e sessao sustentada.
+
+5) docs/mali/INITIAL_AUDIT.md
+   - Auditoria de codigo e fluxo de build existentes.
+   - Observa app em os/android, CMake no projeto nativo, Gradle para empacotar.
+   - Registra que o launcher permite driver system e que o upstream declara Mali
+     nao suportada.
+   - Registra CMake com flags -march=armv8.2-a -fno-emulated-tls.
+   - Destaca desconhecidos: API/driver Vulkan do aparelho, formatos BCn, shaders,
+     FPS, memoria, temperatura e estabilidade.
+
+6) docs/mali/KNOWN_ISSUES.md
+   - Bloqueios conhecidos: suporte Mali nao validado no upstream, escolha de
+     driver, ausencia de resultado final de CI, shaders/BCn nao validados,
+     ausencia de benchmark e scripts voltados a Windows + Git Bash.
+
+7) docs/mali/PERFORMANCE.md
+   - Plano de perfil conservador e metodologia de comparacao antes/depois.
+   - Recomenda medir CPU/GPU e frame time, nao inferir gargalo pelo FPS.
+   - Explica que cap de 30 FPS nao prova 30 FPS sustentados.
+
+8) docs/mali/RESEARCH.md
+   - Pesquisa de LibertyRecompAndroid, fork ArkSentinel, Vulkan, Android NDK,
+     Mali-G57 e ports de Skate 3 / Sonic Unleashed.
+   - Skate 3 Mobile documenta um dispositivo Mali-G57 (RG406V / Unisoc T820) e
+     perfil handheld com reducao de resolucao interna, draw/LOD, complexidade de
+     materiais, grama e efeitos caros.
+   - Sonic Unleashed Android descreve suporte experimental em Mali-G615, uso do
+     driver system em GPU nao-Adreno, transcode BC para ETC2/EAC e fallback RGBA,
+     alem de contadores/timing de render.
+   - Conclusao registrada: sao referencias de metodologia, nao patches drop-in.
+     Mali-G615 nao prova G57; nem port prova que GTA IV funciona.
+
+9) docs/mali/SHADERS.md
+   - Plano de diagnostico para shader/SPIR-V, pipeline creation e ClipDistance/
+     CullDistance.
+   - Nenhuma transformacao especifica de shader Mali foi aplicada.
+
+10) docs/mali/TEXTURES.md
+    - Plano para inventariar BC1/DXT1, BC2/DXT3, BC3/DXT5 e consultar suporte
+      Vulkan real antes de converter.
+    - Nenhuma conversao de textura foi ativada.
+
+11) docs/mali/VULKAN_COMPATIBILITY.md
+    - Lista requisitos de query de instance/device extensions, features, queues,
+      surface, formatos, usos de imagem, memoria e codigos de erro.
+    - Nao desabilitar validacao nem presumir suporte a partir apenas da versao
+      Vulkan; criar fallback so apos reproduzir falha real.
+
+12) os/android/android_args/mali-g57-g99.txt
+    - Perfil experimental com cvars para FSR1/quality, FXAA, draw distance,
+      dynamic draw distance, shadows, reflections, cap 30, trafego/pedestres,
+      profiling detalhado desligado, motion blur desligado, queued frames 3 e
+      output height cap 720.
+    - Acrescenta tambem --gta4_present_mode=vsync e --gta4_fps_guard=0, que NAO
+      aparecem no perfil perf.txt inspecionado. Ainda nao foi provado nesta
+      auditoria que o parser reconhece essas duas opcoes. Ver secao 5.
+    - Perfil nao foi medido em Mali; e somente ponto de partida.
+
+13) os/android/scripts/collect_device_report.sh
+    - Script Bash de coleta nao-root por ADB.
+    - Registra modelo/SoC/Android/API/ABI/build fingerprint, display, propriedades
+      relacionadas a Vulkan/GPU quando expostas, SurfaceFlinger, /proc/meminfo,
+      dumpsys meminfo do pacote e logcat filtrado.
+    - Escreve device_report.txt e graphics_logcat.txt em out/device-report-*.
+    - Nao consulta todas as Vulkan features/formatos; a propria ficha avisa isso.
+    - Rever privacidade do relatorio antes de compartilhar (fingerprint e serial).
+
+Workflow relacionado, observado em main e nao no diff dos 13 arquivos:
+- .github/workflows/android-apk.yml
+- Workflow Android APK em Windows; toolchain pinada; build native + APK; artifact
+  com APK, SHA256 e log.
+- A execucao correspondente ainda estava em progresso na ultima consulta.
+
+======================================================================
+4. FATOS DO CODIGO EXISTENTE INSPECIONADO
+======================================================================
+
+- O modulo Android esta em os/android; applicationId/namespace
+  com.libertyrecomp; ABI arm64-v8a; minSdk 29; targetSdk 35; compileSdk 35.
+- Gradle nao compila CMake: recebe as bibliotecas e recursos staged pelos scripts.
+- build_native.sh define CPU_FLAGS="-march=armv8.2-a -fno-emulated-tls".
+- O mesmo script passa -DANDROID_PLATFORM=android-28 ao CMake, embora o app
+  declare minSdk 29 e o comentario das flags diga que TLS nativo e para API 29+.
+  Isso e uma inconsistência que merece verificacao tecnica; nao mudar sem
+  confirmar impacto no NDK/toolchain e requisitos de runtime.
+- O launcher/proxy tem caminho para escolher o driver Vulkan do sistema. No Mali
+  deve-se testar o driver do fabricante Android, nunca assumir Turnip/Adreno.
+- O Android e Vulkan-only; documentos do projeto referem Vulkan 1.2, mas o
+  manifest declara feature Vulkan 1.1 required. Confirmar no codigo a versao
+  efetivamente solicitada e as extensoes/features exigidas; API declarada nao
+  garante formatos/extensoes.
+- O arquivo os/android/native/CMakeLists.txt cria um proxy chamado vulkan e
+  liga libadrenotools; a existencia do proxy nao significa suporte Turnip no Mali.
+- O perfil perf.txt existente foi descrito como voltado a hardware Adreno e inclui
+  varias das cvars reutilizadas pelo perfil Mali.
+- Os scripts de build foram concebidos para Windows + Git Bash e usam ferramentas
+  host Windows para shaders.
+- Assets de GTA IV nao devem ser incluidos no APK de CI nem no repositorio.
+
+======================================================================
+5. ERROS, RISCOS E QUESTOES QUE CLAUDE DEVE VERIFICAR
+======================================================================
+
+A) Perfil com opcoes nao verificadas (prioridade alta, baixo risco de auditoria)
+- Em os/android/android_args/mali-g57-g99.txt, comentario diz que TODAS as cvars
+  sao usadas nos perfis existentes.
+- Mas --gta4_present_mode=vsync e --gta4_fps_guard=0 nao aparecem no perf.txt
+  que foi inspecionado. Isso torna o comentario no minimo impreciso.
+- Buscar no parser/registro real de argumentos/cvars se essas opcoes existem,
+  quais valores aceitam e o comportamento de valor desconhecido.
+- Se nao existirem, remove-las do perfil. Se existirem, documentar a origem e
+  validar o valor; nao assumir que "vsync" ou "0" e aceito.
+
+B) API de compilacao nativa inconsistente (prioridade alta para build)
+- build_native.sh usa -DANDROID_PLATFORM=android-28.
+- app/build.gradle.kts usa minSdk 29.
+- build_native.sh justifica -fno-emulated-tls como API 29+.
+- Claude deve analisar NDK 29, toolchains/android.cmake, chamadas importadas e
+  minSdk real; propor valor coerente e explicar possiveis implicacoes ABI/runtime.
+  Nao afirmar que isto ja causa falha sem logs ou reproducao.
+
+C) Branch divergida
+- O PR estava 15 commits ahead e 1 behind main, status diverged.
+- Identificar o commit que esta apenas em main, conferir se altera workflow/scripts
+  usados e atualizar/rebasear de forma segura antes de merge. Preservar trabalho.
+
+D) CI sem resultado final
+- Ultimo status conhecido: build em andamento, nenhum artifact listado.
+- Nao ha logs finais acessiveis enquanto run estava em progresso.
+- Reconsultar o run 38417273793; depois analisar erro concreto e corrigir em branch,
+  sem mascarar falhas com "|| true" fora dos checks que sao realmente opcionais.
+
+E) Validacao Mali inexistente para GTA IV
+- Nao ha ainda logcat do GTA IV executando no aparelho, Vulkan capability dump,
+  screenshot/confirmacao de cena, nem metricas de frame-time.
+- O usuario confirma que Skate 3 e Sonic Unleashed funcionam no seu Mali-G57.
+  Isso muda a prioridade: usar os dois como controle positivo do dispositivo,
+  coletar versoes de Android/driver e comparar, mas nao concluir que os shaders/
+  formatos de GTA IV sao iguais.
+- Primeiro objetivo e capturar o primeiro ponto exato em que GTA IV falha:
+  launcher, driver selection, vkCreateInstance, physical device, vkCreateDevice,
+  swapchain, shader module, graphics pipeline, alocacao de imagem, primeiro draw,
+  ou runtime/game logic. Registrar codigo Vulkan e log completo.
+
+F) Texture BCn
+- Nao converter texturas sem prova de que o formato necessario nao e suportado
+  para o uso especifico.
+- Consultar vkGetPhysicalDeviceFormatProperties e image format properties.
+- Se necessario, testar caminho BC -> ETC2/EAC quando semantica/formatos suportarem,
+  depois fallback RGBA apenas quando justificado. Validar alpha, sRGB, canais,
+  mipmaps, blocos parciais, filtering e custo de memoria/bandwidth.
+
+G) SPIR-V / ClipDistance / CullDistance
+- Nao remover instrucoes globalmente.
+- Identificar shader, stage, resultado de compilacao/validation e erro de pipeline.
+- Transformacao deve ser localizada, capability-gated, testada com imagens de
+  referencia e validar clipping, sombras, silhuetas e mudanca de cena.
+
+H) Profiling
+- Adotar instrumentacao semelhante em conceito aos ports de referencia: CPU/GPU
+  frame times, p50/p95/p99, draw calls, pipeline binds, barriers, waits/fences/
+  present, memoria e termica quando disponivel.
+- Nao copiar counters/cvars de outra engine sem adaptar.
+- Separar cold run de warmed run e repetir mesmas cenas/resolucao/config.
+
+I) Compatibilidade de CPU/ABI
+- Confirmar que -march=armv8.2-a e LSE nao impedem dispositivos ARM64 menos novos
+  que o alvo, caso o projeto pretenda suporte amplo. Para Helio G99, Cortex-A76/
+  A55 e plausivel, mas confirmar flags e runtime. O escopo atual e G99/Mali-G57.
+- Conferir APK: apenas arm64-v8a, bibliotecas DT_NEEDED, dependencias e requisitos
+  de memoria/alinhamento de pagina 16 KB onde aplicavel.
+
+======================================================================
+6. REFERENCIAS EXTERNAS E O QUE PODE SER APRENDIDO
+======================================================================
+
+Skate 3 Mobile:
+https://github.com/Buku313/Skate3-Mobile
+- Documenta Mali-G57 num RG406V/Unisoc T820 e um perfil de carga reduzida.
+- Aprendizado: reduzir workload e medir; nao e evidencia de que a engine GTA IV
+  ou o Helio G99 tem a mesma performance.
+
+Outro wrapper Skate 3 Android:
+https://github.com/andrewnakas/skate3-android
+- Ideias de separacao entre build nativo e Gradle e coleta de frame pacing,
+  memoria, termica e logs. Os testes de hardware mencionados nao devem ser
+  interpretados como benchmark Mali.
+
+Sonic Unleashed Recompiled Android:
+https://github.com/SansNope/UnleashedRecomp-Android
+- Documenta caminho experimental com Mali-G615, driver system em GPU nao-Adreno,
+  fallback de textura e contadores do renderer.
+- O aparelho/SoC reportado e diferente; nao prova compatibilidade de G57/GTA IV.
+
+Fork experimental Mali do projeto Liberty:
+https://github.com/ArkSentinel/LibertyRecompAndroid
+- Tratar como referencia para revisar commits/diffs especificos; nao copiar tudo.
+- Registrar SHA upstream, licenca, arquivos, diferenca semantica e teste para cada
+  patch eventualmente portado.
+
+======================================================================
+7. PLANO DE TRABALHO PROPOSTO PARA CLAUDE
+======================================================================
+
+FASE 1 — AUDITORIA REPRODUZIVEL
+1. Ler o estado atual de main e work/mali-g57-automation; comparar todos os commits.
+2. Verificar estado final do GitHub Actions run 38417273793 e corrigir primeiro
+   erro real de build. Nao declarar sucesso ate APK e bibliotecas serem validados.
+3. Auditar todas as cvars do perfil Mali contra registro/parser real.
+4. Investigar android-28 vs minSdk 29 vs -fno-emulated-tls.
+5. Rever script ADB e workflow para robustez, privacidade e artifacts.
+
+FASE 2 — DIAGNOSTICO DO DISPOSITIVO
+6. Coletar do aparelho modelo, Android/API, ABI, Vulkan driver/API e logs.
+7. Obter relatorio Vulkan real (device/driver, extensions, features, queue families,
+   surface formats/modes, format properties, heaps/types e codigos de erro).
+8. Usar Skate 3 e Sonic Unleashed como controle positivo do sistema, anotando
+   versao de cada APK/port, driver escolhido e se usam o driver de sistema.
+9. Tentar GTA IV com driver system e perfil default, sem patches especulativos.
+10. Localizar o primeiro erro concreto e reproduzivel.
+
+FASE 3 — CORRECOES MINIMAS
+11. Corrigir apenas a falha comprovada: inicializacao, extensao/feature, formato,
+    shader/SPIR-V, pipeline, sincronizacao, alocacao ou problema nao-grafico.
+12. Feature detection em runtime, fallback localizado e logs claros.
+13. Preservar o caminho Adreno/Turnip existente; Mali nao deve quebrar Adreno.
+14. Nao reduzir fidelidade visual sem necessidade e comparar screenshot/reference.
+15. Adicionar teste/regressao e registrar licenca se codigo externo for usado.
+
+FASE 4 — DESEMPENHO
+16. Depois da cena 3D correta, medir CPU/GPU e frame pacing.
+17. Testar resolucao interna/FSR, draw distance, sombras, reflexoes e densidade
+    usando apenas cvars reconhecidas.
+18. Medir p50/p95/p99, memoria, crash/stutter e termica em sessoes sustentadas.
+19. Comparar antes/depois com mesma cena, resolucao, duracao e warm-up.
+20. Nao prometer FPS sem resultado medido.
+
+======================================================================
+8. CRITERIOS DE ACEITACAO
+======================================================================
+
+Compatibilidade minima:
+- APK compila e empacota com todas as bibliotecas necessarias.
+- App inicia no Helio G99 e usa o driver Vulkan system do aparelho.
+- GTA IV passa da inicializacao Vulkan e renderiza cena 3D real.
+- Sem crash fatal durante transicoes basicas.
+- Input, audio, pause/resume e save/load sao testados separadamente.
+- Logs registram versao/driver e ausencia/presenca de erros Vulkan relevantes.
+
+Performance:
+- Teste sustentado com cenas repetiveis e resultados medidos.
+- FPS medio e frametimes p50/p95/p99, stutters, memoria e termica documentados.
+- Nenhuma alegacao de desempenho baseada apenas em cap de FPS ou sucesso de build.
+
+Qualidade do patch:
+- Diff pequeno e rastreavel; nao sobrescrever trabalho do usuario.
+- Sem assets proprietarios, sem root, sem bootloader, sem kernel/overclock.
+- Nao usar Turnip em Mali.
+- Nao aplicar workaround global sem prova.
+- Atualizar docs e registrar commit SHA, logs e testes de cada mudanca.
+
+======================================================================
+9. INSTRUCAO FINAL PARA CLAUDE
+======================================================================
+
+Leia esta ficha como contexto, mas valide tudo no codigo atual. Priorize erros
+reproduziveis. Nao responda apenas com teoria: inspecione scripts, parser de
+argumentos, Vulkan init, renderer, shader pipeline, formatos de textura, CMake,
+workflow e diff real. Informe:
+1) bugs confirmados, com arquivo/linha e evidencia;
+2) suspeitas que exigem teste, claramente rotuladas;
+3) alteracoes minimas recomendadas;
+4) patch proposto ou implementado, sem apagar trabalho existente;
+5) comandos de build/teste e resultados reais;
+6) quais testes ainda dependem do aparelho do usuario;
+7) checklist exato do que o usuario deve coletar se for indispensavel.
+
+Nao alegue que GTA IV funciona no Mali so porque Skate 3 e Sonic Unleashed rodam.
+Use o relato como prova de que o dispositivo executa outros workloads Vulkan, e
+investigue o caminho especifico do GTA IV. Nao invente logs, FPS ou resultados.
+FIM DA FICHA.
