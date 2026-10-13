@@ -30,6 +30,16 @@ adb logcat -d -s LibertyDriver LibertyRecomp LibertyLauncher
 
 Some fields may be absent or access-restricted on a given Android build. Missing properties are not proof of missing hardware capability.
 
+## Automated non-root collection
+
+From Git Bash on Windows with one authorized device connected:
+
+```bash
+bash os/android/scripts/collect_device_report.sh
+```
+
+The script writes a device report and filtered graphics logcat under `out/device-report-<UTC timestamp>/`. It is a useful first-pass report, not a replacement for a Vulkan capability probe. Review logs before sharing them.
+
 ## Vulkan report requirements
 
 The diagnostic should capture the physical device name/vendor/device IDs, API and driver versions, driver name/info where exposed, device and instance extensions, core/optional features, queue families and presentation support, surface formats/modes, image format properties, sampled/storage/attachment support, memory heaps/types and shader-related failures. Record the exact Vulkan result code for each failed operation.
