@@ -1,0 +1,121 @@
+name: Android APK (baseline and Mali investigation)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-apk.yml'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'glue/**'
+      - 'os/android/**'
+      - 'toolchains/**'
+      - 'tools/setup_repo.py'
+      - 'thirdparty/**'
+      - 'LibertyRecompLib/**'
+  pull_request:
+    paths:
+      - '.github/workflows/android-apk.yml'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'glue/**'
+      - 'os/android/**'
+      - 'toolchains/**'
+      - 'tools/setup_repo.py'
+      - 'thirdparty/**'
+      - 'LibertyRecompLib/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-android-arm64:
+    name: Build Android ARM64 APK
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Configure Git for long paths
+        shell: bash
+        run: git config --global core.longpaths true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: ''
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK, NDK and CMake
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0 ndk;29.0.14206865 cmake;3.31.6'
+
+      - name: Build native libraries and APK
+        shell: bash
+        env:
+          NDK_VER: '29.0.14206865'
+          BUILD_TYPE: RelWithDebInfo
+          STRIP: '1'
+          DIRECT_CALLS_ENABLE: '0'
+        run: |
+          set -euo pipefail
+          # The project's Android scripts were authored for Git Bash on Windows.
+          export ANDROID_HOME="$(cygpath -u "${ANDROID_HOME}")"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          export JAVA_HOME="$(cygpath -u "${JAVA_HOME}")"
+          export ANDROID_NDK="$ANDROID_HOME/ndk/$NDK_VER"
+          export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
+
+          python --version
+          java -version
+          cmake --version
+          ninja --version
+          test -d "$ANDROID_NDK"
+          mkdir -p out
+          {
+            echo "Commit: $GITHUB_SHA"
+            echo "Runner: $RUNNER_OS"
+            echo "Android SDK: $ANDROID_HOME"
+            echo "Android NDK: $ANDROID_NDK"
+            echo "Build type: $BUILD_TYPE"
+            python tools/setup_repo.py
+            bash os/android/scripts/build_driver_proxy.sh
+            STRIP="$STRIP" BUILD_TYPE="$BUILD_TYPE" bash os/android/scripts/build_native.sh
+            rm -f os/android/app/build/outputs/apk/debug/app-debug.apk
+            bash os/android/scripts/build_apk.sh debug
+            APK="os/android/app/build/outputs/apk/debug/app-debug.apk"
+            test -s "$APK"
+            "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" apk summary "$APK" || true
+            unzip -l "$APK" | grep -E 'lib/arm64-v8a/.*\.so$'
+            mkdir -p out/ci
+            cp "$APK" out/ci/GTA4-Recomp-Android-arm64-debug.apk
+            sha256sum out/ci/GTA4-Recomp-Android-arm64-debug.apk > out/ci/SHA256SUMS.txt
+          } 2>&1 | tee out/mali-ci-build.log
+
+      - name: Upload APK and build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GTA4-Recomp-Android-arm64-${{ github.sha }}
+          path: |
+            out/ci/GTA4-Recomp-Android-arm64-debug.apk
+            out/ci/SHA256SUMS.txt
+            out/mali-ci-build.log
+          if-no-files-found: warn
+          retention-days: 14
