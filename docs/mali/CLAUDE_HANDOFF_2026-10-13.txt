@@ -158,13 +158,14 @@ SPIR-V ou conversao de texturas.
       Vulkan; criar fallback so apos reproduzir falha real.
 
 12) os/android/android_args/mali-g57-g99.txt
-    - Perfil experimental com cvars para FSR1/quality, FXAA, draw distance,
-      dynamic draw distance, shadows, reflections, cap 30, trafego/pedestres,
-      profiling detalhado desligado, motion blur desligado, queued frames 3 e
-      output height cap 720.
-    - Acrescenta tambem --gta4_present_mode=vsync e --gta4_fps_guard=0, que NAO
-      aparecem no perfil perf.txt inspecionado. Ainda nao foi provado nesta
-      auditoria que o parser reconhece essas duas opcoes. Ver secao 5.
+    - Perfil experimental com cvars reutilizadas de perf.txt: FSR1/quality, FXAA,
+      draw distance, dynamic draw distance, shadows, reflections, cap 30,
+      trafego/pedestres, profiling detalhado desligado, motion blur desligado,
+      queued frames 3 e output height cap 720.
+    - Durante a revisao foram removidas --gta4_present_mode=vsync e
+      --gta4_fps_guard=0 porque nao apareciam no perfil perf.txt e ainda nao havia
+      prova de que o parser as reconhece. Reintroduzir somente apos confirmar no
+      registro/parser de argumentos.
     - Perfil nao foi medido em Mali; e somente ponto de partida.
 
 13) os/android/scripts/collect_device_report.sh
@@ -212,15 +213,13 @@ Workflow relacionado, observado em main e nao no diff dos 13 arquivos:
 5. ERROS, RISCOS E QUESTOES QUE CLAUDE DEVE VERIFICAR
 ======================================================================
 
-A) Perfil com opcoes nao verificadas (prioridade alta, baixo risco de auditoria)
-- Em os/android/android_args/mali-g57-g99.txt, comentario diz que TODAS as cvars
-  sao usadas nos perfis existentes.
-- Mas --gta4_present_mode=vsync e --gta4_fps_guard=0 nao aparecem no perf.txt
-  que foi inspecionado. Isso torna o comentario no minimo impreciso.
-- Buscar no parser/registro real de argumentos/cvars se essas opcoes existem,
-  quais valores aceitam e o comportamento de valor desconhecido.
-- Se nao existirem, remove-las do perfil. Se existirem, documentar a origem e
-  validar o valor; nao assumir que "vsync" ou "0" e aceito.
+A) Perfil com opcoes nao verificadas (correcao aplicada)
+- Na revisao inicial, --gta4_present_mode=vsync e --gta4_fps_guard=0 nao apareciam
+  no perf.txt inspecionado e nao havia confirmacao de que o parser as reconhece.
+- Essas duas opcoes foram removidas do perfil Mali no commit desta ficha. O
+  comentario foi corrigido para nao afirmar que opcoes nao verificadas sao
+  reconhecidas. Se o parser confirmar que existem, podem ser reintroduzidas com
+  documentacao do valor aceito e teste real.
 
 B) API de compilacao nativa inconsistente (prioridade alta para build)
 - build_native.sh usa -DANDROID_PLATFORM=android-28.
